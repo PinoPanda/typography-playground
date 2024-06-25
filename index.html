@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typography Playground</title>
+    <script src="https://unpkg.com/react@17/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@17/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useRef, useEffect } = React;
+        const { Shuffle, Copy, RefreshCw, Type } = lucide;
+
+        const words = {
+            nouns: ['gatto', 'cane', 'albero', 'casa', 'libro', 'sole', 'luna', 'fiore', 'montagna', 'oceano'],
+            verbs: ['corre', 'salta', 'dorme', 'mangia', 'legge', 'vola', 'nuota', 'canta', 'balla', 'ride'],
+            adjectives: ['felice', 'triste', 'grande', 'piccolo', 'bello', 'brutto', 'veloce', 'lento', 'brillante', 'scuro']
+        };
+
+        const fonts = [
+            'Arial, sans-serif',
+            'Helvetica, sans-serif',
+            'Times New Roman, serif',
+            'Courier New, monospace',
+            'Georgia, serif',
+            'Palatino, serif',
+            'Garamond, serif',
+            'Bookman, serif',
+            'Comic Sans MS, cursive',
+            'Trebuchet MS, sans-serif',
+            'Arial Black, sans-serif',
+            'Impact, sans-serif'
+        ];
+
+        const TypographyPlayground = () => {
+            const [text, setText] = useState('Ciao Mondo');
+            const [letters, setLetters] = useState([]);
+            const [draggedLetter, setDraggedLetter] = useState(null);
+            const [isRotating, setIsRotating] = useState(false);
+            const [currentFont, setCurrentFont] = useState(fonts[0]);
+            const containerRef = useRef(null);
+            const rotationStartRef = useRef(null);
+
+            useEffect(() => {
+                setLetters(prevLetters => {
+                    const newLetters = text.split('').map((char, index) => {
+                        const existingLetter = prevLetters.find(l => l.id === index);
+                        if (existingLetter) {
+                            return { ...existingLetter, char };
+                        } else {
+                            return {
+                                id: index,
+                                char,
+                                x: 20 + index * 20,
+                                y: 50,
+                                fontSize: 40,
+                                rotation: 0
+                            };
+                        }
+                    });
+                    return newLetters.slice(0, text.length);
+                });
+            }, [text]);
+
+            const handleMouseDown = (e, letterId) => {
+                if (e.shiftKey) {
+                    setIsRotating(true);
+                    rotationStartRef.current = {
+                        x: e.clientX,
+                        y: e.clientY,
+                        letterId: letterId
+                    };
+                } else {
+                    setDraggedLetter(letterId);
+                }
+            };
+
+            const handleMouseMove = (e) => {
+                if (containerRef.current) {
+                    const containerRect = containerRef.current.getBoundingClientRect();
+                    const newX = e.clientX - containerRect.left;
+                    const newY = e.clientY - containerRect.top;
+
+                    if (isRotating && rotationStartRef.current) {
+                        const letter = letters.find(l => l.id === rotationStartRef.current.letterId);
+                        const centerX = letter.x + letter.fontSize / 2;
+                        const centerY = letter.y + letter.fontSize / 2;
+                        
+                        const startAngle = Math.atan2(rotationStartRef.current.y - centerY, rotationStartRef.current.x - centerX);
+                        const currentAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX);
+                        let newRotation = ((currentAngle - startAngle) * 180 / Math.PI + 360) % 360;
+
+                        setLetters(prevLetters =>
+                            prevLetters.map(l =>
+                                l.id === rotationStartRef.current.letterId
+                                    ? { ...l, rotation: newRotation }
+                                    : l
+                            )
+                        );
+                    } else if (draggedLetter !== null) {
+                        const limitedX = Math.max(0, Math.min(newX, containerRect.width));
+                        const limitedY = Math.max(0, Math.min(newY, containerRect.height));
+
+                        setLetters(prevLetters =>
+                            prevLetters.map(letter =>
+                                letter.id === draggedLetter
+                                    ? { ...letter, x: limitedX, y: limitedY }
+                                    : letter
+                            )
+                        );
+                    }
+                }
+            };
+
+            const handleMouseUp = () => {
+                setDraggedLetter(null);
+                setIsRotating(false);
+                rotationStartRef.current = null;
+            };
+
+            const handleWheel = (e, letterId) => {
+                e.preventDefault();
+                const scaleFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                setLetters(prevLetters =>
+                    prevLetters.map(letter =>
+                        letter.id === letterId
+                            ? { ...letter, fontSize: Math.max(10, Math.min(100, letter.fontSize * scaleFactor)) }
+                            : letter
+                    )
+                );
+            };
+
+            const randomizeLetters = () => {
+                if (containerRef.current) {
+                    const containerRect = containerRef.current.getBoundingClientRect();
+                    setLetters(prevLetters =>
+                        prevLetters.map(letter => ({
+                            ...letter,
+                            x: Math.random() * (containerRect.width - letter.fontSize),
+                            y: Math.random() * (containerRect.height - letter.fontSize),
+                            fontSize: Math.random() * 60 + 20,
+                            rotation: Math.random() * 360
+                        }))
+                    );
+                }
+            };
+
+            const exportCSS = () => {
+                const css = letters.map((letter, index) => `
+            .letter-${index} {
+                position: absolute;
+                left: ${letter.x}px;
+                top: ${letter.y}px;
+                font-size: ${letter.fontSize}px;
+                transform: rotate(${letter.rotation}deg);
+            }
+            `).join('\n');
+
+                const htmlStructure = `
+            <div class="typography-composition" style="font-family: ${currentFont};">
+                ${letters.map((letter, index) => `<span class="letter-${index}">${letter.char}</span>`).join('\n  ')}
+            </div>
+            `;
+
+                const fullOutput = `/* CSS */\n${css}\n\n/* HTML */\n${htmlStructure}`;
+
+                navigator.clipboard.writeText(fullOutput).then(() => {
+                    alert('CSS e HTML copiati negli appunti!');
+                }).catch(err => {
+                    console.error('Errore nel copiare il testo: ', err);
+                });
+            };
+
+            const generateRandomPhrase = () => {
+                const getRandomWord = (category) => words[category][Math.floor(Math.random() * words[category].length)];
+                const newPhrase = `${getRandomWord('adjectives')} ${getRandomWord('nouns')} ${getRandomWord('verbs')}`;
+                setText(newPhrase);
+            };
+
+            const changeFont = () => {
+                const currentIndex = fonts.indexOf(currentFont);
+                const nextIndex = (currentIndex + 1) % fonts.length;
+                setCurrentFont(fonts[nextIndex]);
+            };
+
+            return (
+                <div className="p-4 max-w-4xl mx-auto">
+                    <h1 className="text-2xl font-bold mb-4">Typography Playground</h1>
+                    
+                    <div className="mb-4 flex items-center space-x-2">
+                        <input
+                            type="text"
+                            value={text}
+                            onChange={(e) => setText(e.target.value)}
+                            className="flex-grow p-2 border rounded"
+                            placeholder="Inserisci il testo"
+                        />
+                        <button
+                            onClick={randomizeLetters}
+                            className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                            title="Randomizza le lettere"
+                        >
+                            <Shuffle size={24} />
+                        </button>
+                        <button
+                            onClick={exportCSS}
+                            className="p-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                            title="Esporta CSS"
+                        >
+                            <Copy size={24} />
+                        </button>
+                        <button
+                            onClick={generateRandomPhrase}
+                            className="p-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors"
+                            title="Genera frase casuale"
+                        >
+                            <RefreshCw size={24} />
+                        </button>
+                        <button
+                            onClick={changeFont}
+                            className="p-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
+                            title="Cambia font"
+                        >
+                            <Type size={24} />
+                        </button>
+                    </div>
+                    
+                    <div 
+                        ref={containerRef}
+                        className="border p-4 h-96 relative bg-gray-100 overflow-hidden"
+                        style={{ fontFamily: currentFont }}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                    >
+                        {letters.map((letter) => (
+                            <span
+                                key={letter.id}
+                                style={{
+                                    position: 'absolute',
+                                    left: `${letter.x}px`,
+                                    top: `${letter.y}px`,
+                                    fontSize: `${letter.fontSize}px`,
+                                    transform: `rotate(${letter.rotation}deg)`,
+                                    cursor: 'move',
+                                    userSelect: 'none',
+                                }}
+                                onMouseDown={(e) => handleMouseDown(e, letter.id)}
+                                onWheel={(e) => handleWheel(e, letter.id)}
+                            >
+                                {letter.char}
+                            </span>
+                        ))}
+                    </div>
+                    
+                    <p className="mt-4 text-sm text-gray-600">
+                        Font attuale: {currentFont.split(',')[0]}
+                    </p>
+                    
+                    <p className="mt-2 text-sm text-gray-600">
+                        Istruzioni:
+                        <br />- Modifica il testo nell'input sopra (le lettere manterranno le loro proprietà)
+                        <br />- Clicca il pulsante "shuffle" per randomizzare la posizione, dimensione e rotazione delle lettere
+                        <br />- Clicca il pulsante "copia" per esportare il CSS e l'HTML della composizione
+                        <br />- Clicca il pulsante "refresh" per generare una nuova frase casuale
+                        <br />- Clicca il pulsante "font" per cambiare il font della composizione
+                        <br />- Trascina le lettere per spostarle
+                        <br />- Usa la rotellina del mouse su una lettera per cambiarne la dimensione
+                        <br />- Tieni premuto SHIFT e trascina una lettera per ruotarla
+                    </p>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<TypographyPlayground />, document.getElementById('root'));
+    </script>
+</body>
+</html>
